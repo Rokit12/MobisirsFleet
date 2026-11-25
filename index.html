@@ -144,7 +144,7 @@ table{width:100%;border-collapse:collapse}
 .mhead{display:flex;align-items:center;padding:12px 12px 12px 20px;border-bottom:1px solid var(--line)}.mhead h3{margin:0;font-size:17px;flex:1}
 .mbody{padding:18px 20px;overflow-y:auto}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
-.form label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;font-weight:600}
+.form label{display:flex;flex-direction:column;gap:5px;font-size:13.5px;font-weight:600}.form label>span.lt{display:block}
 .form label.full{grid-column:1/-1}
 .form input,.form select,.form textarea,.setf input,.setf select{font-size:16px;border:1px solid var(--line);border-radius:9px;padding:9px 11px;min-height:44px;background:var(--soft);font-weight:400}
 .form textarea{min-height:80px;resize:vertical}
@@ -193,6 +193,34 @@ table{width:100%;border-collapse:collapse}
 @media(max-width:980px){#app{grid-template-columns:minmax(0,1fr)}.side{position:fixed;left:0;top:0;bottom:0;width:260px;z-index:45;transform:translateX(-100%);transition:transform .2s}
 body.navopen .side{transform:none;box-shadow:0 0 0 100vmax #0a143066}.burger{display:grid}.split{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:700px){.row3,.row4{grid-template-columns:minmax(0,1fr)}.top,#view{padding-left:14px;padding-right:14px}.foot{margin:0 14px 14px;grid-template-columns:minmax(0,1fr)}.donut{grid-template-columns:minmax(0,1fr)}.donut svg{max-width:220px;margin:auto}.form{grid-template-columns:minmax(0,1fr)}.prof .nm,.sep,.tr .when{display:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kic{width:40px;height:40px}.kic svg.i{width:22px;height:22px}.kpi{padding:12px;gap:8px}}
+@media(max-width:700px){
+.top{position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(8px);display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.top .burger{order:0}.top .tr{order:1;margin:0;justify-self:end;gap:4px;flex-wrap:nowrap}.top>div:not(.tr){order:2;grid-column:1/-1}
+.top h1{font-size:19px}.top p{display:none}.gpsb .gl{display:none}.gpsb{font-size:13px}
+.pop{position:fixed;left:10px;right:10px;top:60px;width:auto!important;max-height:70vh}
+#view{gap:12px;padding-top:12px}
+.tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tile{padding:12px}.tile b{font-size:20px;white-space:normal;overflow-wrap:anywhere}.tile em{font-size:12px}
+.tbar{gap:8px;padding:10px}.srch{flex:1 1 100%;max-width:none}.tbar select,.msort{flex:1 1 40%;max-width:none;font-size:16px}.tbar .grow{display:none}.tbar .btn{flex:1 1 auto;justify-content:center}
+.msort{display:block!important}
+.tbl thead{display:none}.tbl,.tbl tbody{display:block}
+.tbl tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.tbl td{display:block;border:0;padding:0;white-space:normal;text-align:left!important;font-size:14px;overflow-wrap:anywhere}
+.tbl td::before{content:attr(data-l);display:block;font-size:11.5px;color:var(--mut);font-weight:600;margin-bottom:1px}
+.tbl td:first-child{grid-column:1/-1;font-size:16px}.tbl td:first-child::before,.tbl td.actcell::before,.tbl td.empty::before{display:none}
+.tbl td.actcell,.tbl td.wrap,.tbl td.empty{grid-column:1/-1}.tbl td:empty{display:none}.tbl tbody tr:hover{background:none}
+.acts{justify-content:flex-start;flex-wrap:wrap;gap:6px}.acts button{min-height:40px;padding:0 12px}
+.pager{justify-content:space-between}.pager .grow{display:none}.pager>span:first-child{flex:1 1 100%}
+.sel{font-size:16px}.mapw.big{height:360px}
+.modal{place-items:end stretch;padding:0}.mbox,.mbox.wide{width:100%;max-height:92vh;border-radius:18px 18px 0 0}
+.mbody{padding:16px}.mact{position:sticky;bottom:-16px;background:var(--card);padding:10px 0 12px;margin-bottom:-16px;border-top:1px solid var(--line)}.mact .btn{flex:1 1 auto;justify-content:center}
+#toasts{left:12px;right:12px;bottom:12px}.toast{max-width:none}
+.ch h2{font-size:14px;padding:10px 14px}.cb{padding:12px}
+.fc b{font-size:17px}.lg div{font-size:13px}
+}
+@media(min-width:701px) and (max-width:1280px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.kpi .v{font-size:24px}}
+.msort{display:none}
+.mbrand{display:none}
+@media(max-width:900px){.mbrand{display:flex;align-items:center;gap:12px;width:min(420px,100%);margin-bottom:14px}.mbrand b{display:block;font-size:20px;color:var(--navy)}:root:not([data-theme=light]) .mbrand b{color:light-dark(var(--navy),#fff)}.mbrand small{color:var(--mut);font-size:13px}.mbrand .mk{width:46px;height:46px;border-radius:12px;background:var(--navy);display:grid;place-items:center;flex:none}.lside{flex-direction:column;display:flex;align-items:center}.mbrand a{margin-left:auto;font-size:13.5px;font-weight:600;color:var(--blue);white-space:nowrap}}
 @media(prefers-reduced-motion:reduce){.dot,.toast{animation:none}.side{transition:none}}
 </style>
 </head>
@@ -234,7 +262,7 @@ body.navopen .side{transform:none;box-shadow:0 0 0 100vmax #0a143066}.burger{dis
     </div>
     <h1>Every hotel vehicle, driver and shilling in one place.</h1>
     <p>Mobisirs Fleet Operations tracks vehicle positions, trips, maintenance, NTSA inspections, fuel, cleaning and spending across your partner hotels.</p>
-    <h2>How to sign in</h2>
+    <h2 id="howto">How to sign in</h2>
     <ol class="steps">
       <li><b>Get your account</b><span>Your administrator creates your username and gives you a temporary password.</span></li>
       <li><b>Sign in</b><span>Enter them in the form. Usernames are not case-sensitive.</span></li>
@@ -244,7 +272,7 @@ body.navopen .side{transform:none;box-shadow:0 0 0 100vmax #0a143066}.burger{dis
     <h2>Access levels</h2>
     <div class="rolechips"><span><b>Admin</b> · everything, manages users</span><span><b>Manager</b> · all records and finance</span><span><b>Dispatcher</b> · trips, GPS, fuel, cleaning</span><span><b>Viewer</b> · read-only</span></div>
   </section>
-  <section class="lside"><div class="card login" id="loginbox"></div></section>
+  <section class="lside"><div class="mbrand"><span class="mk"><svg width="30" height="28" viewBox="0 0 54 50" aria-hidden="true"><rect x="12" y="10" width="8" height="26" fill="#fff"/><rect x="22" y="3" width="9" height="33" fill="#fff"/><rect x="33" y="14" width="7" height="22" fill="#cfd9f2"/><path d="M2 46 C14 30 30 28 52 30 C36 32 22 36 12 48Z" fill="#f59e0b"/></svg></span><span><b>Mobisirs Fleet</b><small>Fleet operations sign-in</small></span><a href="#how" data-act="howto">How to sign in</a></div><div class="card login" id="loginbox"></div></section>
 </div>
 <script type="application/json" id="fleet-state" data-app></script>
 <script data-app>
@@ -605,7 +633,7 @@ function tiles(a){return`<div class="tiles">${a.map(([l,v,s,c])=>`<div class="ti
 function modBlock(k){const m=MOD[k],u=um(k);
   return`<section class="card" data-mod="${k}"><div class="tbar"><label class="srch">${ic('search')}<input type="search" placeholder="Search ${esc(m.plural)}" value="${esc(u.q)}" data-q="${k}" aria-label="Search ${esc(m.plural)}"></label>
   ${(m.filters||[]).map(f=>`<select data-f="${k}" data-k="${f.k}" aria-label="${esc(f.l)}"><option value="">${esc(f.l)}</option>${normO(f.o()).map(([v,l])=>`<option value="${esc(v)}"${u.f[f.k]===v?' selected':''}>${esc(l)}</option>`).join('')}</select>`).join('')}
-  <span class="grow"></span>${m.tools?m.tools():''}<button class="btn ghost" data-act="export" data-m="${k}">${ic('download')}Export CSV</button>${m.ro||!canEdit(k)?'':`<button class="btn primary" data-act="add" data-m="${k}">${ic('plus')}Add ${esc(m.one)}</button>`}</div><div id="tb-${k}"></div></section>`}
+  <select class="msort" data-sortsel="${k}" aria-label="Sort by">${m.cols.map((c,i)=>[1,-1].map(d=>`<option value="${i}:${d}"${u.s===i&&u.dir===d?' selected':''}>Sort: ${esc(c.l)} ${d>0?'↑':'↓'}</option>`).join('')).join('')}${u.s==null?'<option value="" selected>Sort: default</option>':''}</select><span class="grow"></span>${m.tools?m.tools():''}<button class="btn ghost" data-act="export" data-m="${k}">${ic('download')}Export CSV</button>${m.ro||!canEdit(k)?'':`<button class="btn primary" data-act="add" data-m="${k}">${ic('plus')}Add ${esc(m.one)}</button>`}</div><div id="tb-${k}"></div></section>`}
 const cv=(c,r)=>c.t?c.t(r):r[c.k]??'';
 function rowsFor(k){const m=MOD[k],u=um(k);let rows=(m.data?m.data():state[m.store]).slice();
   for(const[fk,fv]of Object.entries(u.f))if(fv)rows=rows.filter(r=>String(r[fk]??'')===fv);
@@ -616,7 +644,7 @@ function rowsFor(k){const m=MOD[k],u=um(k);let rows=(m.data?m.data():state[m.sto
 function renderTable(k){const el=$('#tb-'+k);if(!el)return;const m=MOD[k],u=um(k),rows=rowsFor(k),per=15,pages=Math.max(1,Math.ceil(rows.length/per));if(u.p>=pages)u.p=pages-1;
   const sl=rows.slice(u.p*per,u.p*per+per),ra=r=>(m.rowActs?m.rowActs(r):[]).filter(a=>a.perm===null||canEdit(a.perm||k)),ed=!m.ro&&canEdit(k),dl=!m.ro&&canDel(k),act=ed||dl||(m.rowActs&&sl.some(r=>ra(r).length));
   el.innerHTML=`<div class="scroll"><table class="tbl"><thead><tr>${m.cols.map((c,i)=>`<th class="${c.n?'num':''}" aria-sort="${u.s===i?(u.dir>0?'ascending':'descending'):'none'}"><button class="sort" data-act="sort" data-m="${k}" data-i="${i}">${esc(c.l)}${u.s===i?(u.dir>0?' ▲':' ▼'):''}</button></th>`).join('')}${act?'<th class="num">Actions</th>':''}</tr></thead><tbody>
-  ${sl.length?sl.map(r=>`<tr>${m.cols.map(c=>`<td class="${c.n?'num':''} ${c.cls||''}">${c.h?c.h(r):esc(cv(c,r))}</td>`).join('')}${act?`<td class="num"><div class="acts">${ra(r).map(a=>`<button data-act="row" data-a="${a.a}" data-m="${k}" data-id="${esc(r.id)}">${ic(a.i)}${esc(a.l)}</button>`).join('')}${ed?`<button data-act="edit" data-m="${k}" data-id="${esc(r.id)}" aria-label="Edit">${ic('edit')}</button>`:''}${dl?`<button class="del" data-act="del" data-m="${k}" data-id="${esc(r.id)}" aria-label="Delete">${ic('trash')}</button>`:''}</div></td>`:''}</tr>`).join(''):`<tr><td colspan="${m.cols.length+1}" class="empty">${u.q||Object.values(u.f).some(Boolean)?'No records match your search or filters.':`No ${esc(m.plural)} yet.`}</td></tr>`}</tbody></table></div>
+  ${sl.length?sl.map(r=>`<tr>${m.cols.map(c=>`<td data-l="${esc(c.l)}" class="${c.n?'num':''} ${c.cls||''}">${c.h?c.h(r):esc(cv(c,r))}</td>`).join('')}${act?`<td class="num actcell"><div class="acts">${ra(r).map(a=>`<button data-act="row" data-a="${a.a}" data-m="${k}" data-id="${esc(r.id)}">${ic(a.i)}${esc(a.l)}</button>`).join('')}${ed?`<button data-act="edit" data-m="${k}" data-id="${esc(r.id)}" aria-label="Edit">${ic('edit')}</button>`:''}${dl?`<button class="del" data-act="del" data-m="${k}" data-id="${esc(r.id)}" aria-label="Delete">${ic('trash')}</button>`:''}</div></td>`:''}</tr>`).join(''):`<tr><td colspan="${m.cols.length+1}" class="empty">${u.q||Object.values(u.f).some(Boolean)?'No records match your search or filters.':`No ${esc(m.plural)} yet.`}</td></tr>`}</tbody></table></div>
   <div class="pager"><span>${rows.length} ${esc(m.plural)}${rows.length>per?` · showing ${u.p*per+1}–${Math.min(rows.length,u.p*per+per)}`:''}</span><span class="grow"></span>${pages>1?`<button class="btn ghost sm" data-act="pg" data-m="${k}" data-d="-1" ${u.p?'':'disabled'}>Previous</button><span>Page ${u.p+1} of ${pages}</span><button class="btn ghost sm" data-act="pg" data-m="${k}" data-d="1" ${u.p<pages-1?'':'disabled'}>Next</button>`:''}</div>`}
 function modPage(pg){const P=PAGES[pg],t=ui.tab[pg]&&P.tabs.includes(ui.tab[pg])?ui.tab[pg]:P.tabs[0];
   return`${P.sum?tiles(P.sum()):''}${P.tabs.length>1?`<div class="tabs" role="tablist">${P.tabs.map(x=>`<button role="tab" aria-selected="${x===t}" class="tab${x===t?' on':''}" data-act="tab" data-pg="${pg}" data-t="${x}">${esc(MOD[x].tab)}</button>`).join('')}</div>`:''}${modBlock(t)}`}
@@ -770,7 +798,7 @@ function renderFoot(){const f=$('#foot');if(!f)return;const v=state.vehicles.sli
   <div><span class="fi c-b">${ic('fuel')}</span><span><b>Avg fuel consumption</b><small>${eff(P.cur).toFixed(1)} km/L this month</small></span></div>
   <div><span class="fi c-o">${ic('coins')}</span><span><b>Total expenses (MTD)</b><small>${ksh(t)}</small></span></div>
   <button class="btn navy" data-nav="reports">${ic('chart')}View Detailed Reports${ic('arrow')}</button>`}
-function renderGps(){const n=state.vehicles.filter(v=>fixState(v)==='Live').length;$('#gpst').textContent=n?`Live GPS · ${n} reporting`:'GPS · no live fixes';$('#gpsdot').classList.toggle('off',!n)}
+function renderGps(){const n=state.vehicles.filter(v=>fixState(v)==='Live').length;$('#gpst').innerHTML=n?`<span class="gl">Live GPS · </span>${n} reporting`:'<span class="gl">GPS · </span>no live fixes';$('#gpsdot').classList.toggle('off',!n)}
 function render(){if(!me()){ME=null;renderLanding();return}$('#landing').hidden=true;document.body.classList.remove('locked');const pg=cur(),P=PAGES[pg];if(!canPage(pg)){toast(`${P.t} is not available for your role.`,1);location.hash='dashboard';return}document.body.classList.remove('navopen');$('#ptitle').textContent=P.title||P.t;$('#psub').textContent=P.sub||'';document.title=(P.title||P.t)+' · MBS Fleet';
   $('#view').innerHTML=P.r?P.r():modPage(pg);$$('[data-mod]').forEach(s=>renderTable(s.dataset.mod));bindMap();renderNav();renderFoot();renderGps();storeUi()}
 function rerender(){const y=scrollY;render();scrollTo(0,y)}
@@ -782,7 +810,7 @@ function openModal(title,body,wide){const m=$('#modal');m.innerHTML=`<div class=
 function closeModal(){$('#modal').hidden=true;$('#modal').innerHTML='';if(pend){const p=pend;pend=null;p(false)}}
 function ask(title,msg,ok,danger){return new Promise(res=>{openModal(title,`<p style="margin:0 0 16px">${esc(msg)}</p><div class="mact"><button class="btn ghost" data-close>Cancel</button><button class="btn ${danger?'danger':'primary'}" id="okb">${esc(ok)}</button></div>`);pend=res;$('#okb').onclick=()=>{pend=null;closeModal();res(true)}})}
 function toast(msg,err){const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=msg;$('#toasts').append(t);setTimeout(()=>t.remove(),3200)}
-function fieldHtml(f,v){const id='f_'+f.k,rq=f.req?' required':'',lab=`${esc(f.l)}${f.req?' <span class="req">*</span>':''}`;let inp;
+function fieldHtml(f,v){const id='f_'+f.k,rq=f.req?' required':'',lab=`<span class="lt">${esc(f.l)}${f.req?' <span class="req">*</span>':''}</span>`;let inp;
   if(f.t==='select')inp=`<select id="${id}" name="${f.k}"${rq}>${f.req?'':'<option value="">— None —</option>'}${normO(f.o()).map(([a,b])=>`<option value="${esc(a)}"${String(v??'')===String(a)?' selected':''}>${esc(b)}</option>`).join('')}</select>`;
   else if(f.t==='textarea')inp=`<textarea id="${id}" name="${f.k}"${rq}>${esc(v)}</textarea>`;
   else inp=`<input id="${id}" name="${f.k}" type="${f.t||'text'}"${f.t==='number'?` step="${f.step||'1'}"${f.neg?'':' min="0"'} inputmode="${f.neg?'text':'decimal'}"`:''} value="${esc(v)}"${f.ph?` placeholder="${esc(f.ph)}"`:''}${f.list?` list="dl_${f.k}"`:''}${rq}>${f.list?`<datalist id="dl_${f.k}">${f.list().map(x=>`<option value="${esc(x)}">`).join('')}</datalist>`:''}`;
@@ -811,6 +839,7 @@ function hotelPop(id){const h=H(id);if(!h)return;const vs=state.vehicles.filter(
   <p style="margin:14px 0 0">${state.drivers.filter(d=>d.hotelId===id).length} drivers stationed here.</p><div class="mact"><button class="btn ghost" data-act="hedit" data-id="${esc(id)}">${ic('edit')}Edit hotel</button><button class="btn primary" data-act="hshow" data-id="${esc(id)}">${ic('car')}View vehicles</button></div>`)}
 
 document.addEventListener('click',async e=>{
+  if(document.body.classList.contains('navopen')&&!e.target.closest('.side')&&!e.target.closest('[data-act=menu]')){document.body.classList.remove('navopen');return}
   const pops=['#bellpop','#profpop'];if(!e.target.closest('.rel'))pops.forEach(p=>$(p).hidden=true);
   if(e.target.id==='modal'){closeModal();return}
   const c=e.target.closest('[data-close]');if(c){closeModal();return}
@@ -831,6 +860,7 @@ document.addEventListener('click',async e=>{
   else if(a==='hshow'){um('vehicles').f={hotelId:t.dataset.id};um('vehicles').p=0;closeModal();go('fleet')}
   else if(a==='menu')document.body.classList.toggle('navopen');
   else if(a==='bell'){const p=$('#bellpop'),al=alerts();$('#profpop').hidden=true;p.innerHTML=`<h4>Alerts (${al.length})</h4>${al.slice(0,40).map(x=>`<button class="it" data-nav="${x.nav}"><span class="di" style="background:${{r:'var(--red)',o:'var(--orange)',b:'var(--blue)'}[x.t]}"></span><span><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></span></button>`).join('')||'<p class="note" style="padding:14px">Nothing needs attention.</p>'}`;p.hidden=!p.hidden}
+  else if(a==='howto'){e.preventDefault();$('#howto').scrollIntoView({behavior:'smooth'})}
   else if(a==='gpsimport')openImport();
   else if(a==='gpsprev'||a==='gpsapply'){const res=importGps($('#gpstxt').value,a==='gpsapply'),o=$('#gpsres');if(res.err){o.innerHTML=`<span class="t-r">${esc(res.err)}</span>`;$('#gpsapb').disabled=true;return}
     if(a==='gpsapply'&&res.ok){audit('Updated','GPS','Tracker feed',`${res.ok} readings applied to ${res.veh} vehicles; ${res.old} older skipped; ${res.miss.length} unknown; ${res.bad.length} invalid`);activity('gps','Tracker feed imported',`${res.veh} vehicles updated`,'Updated');closeModal();save();rerender();toast(`${res.veh} vehicle positions updated.`);return}
@@ -849,7 +879,8 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{const k=e.target.dataset.q;if(k){const u=um(k);u.q=e.target.value;u.p=0;renderTable(k);storeUi()}});
 document.addEventListener('change',async e=>{const t=e.target;
-  if(t.dataset.f){const u=um(t.dataset.f);u.f[t.dataset.k]=t.value;u.p=0;renderTable(t.dataset.f);storeUi()}
+  if(t.dataset.sortsel){const u=um(t.dataset.sortsel);if(t.value){const[i,d]=t.value.split(':');u.s=+i;u.dir=+d}else u.s=null;u.p=0;renderTable(t.dataset.sortsel);storeUi()}
+  else if(t.dataset.f){const u=um(t.dataset.f);u.f[t.dataset.k]=t.value;u.p=0;renderTable(t.dataset.f);storeUi()}
   else if(t.dataset.period){ui.period[t.dataset.period]=t.value;rerender()}
   else if(t.id==='gpsfile'&&t.files[0]){$('#gpstxt').value=await t.files[0].text();t.value='';$('#gpsres').textContent='File loaded. Select Check file.'}
   else if(t.id==='impf'&&t.files[0]){try{const d=JSON.parse(await t.files[0].text());const need=['vehicles','drivers','hotels','trips','fuel','wash','maintenance','inspections','procurement','expenses'];if(!need.every(x=>Array.isArray(d[x])))throw 0;

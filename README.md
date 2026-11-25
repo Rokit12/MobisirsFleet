@@ -83,4 +83,4 @@ The app does not stream positions from trackers by itself. For fully live positi
 - Finance ledger built automatically from every module, monthly budget and period comparison
 - Reports by vehicle, hotel, driver and month, with CSV export from every table
 - Alerts bell covering high-priority repairs, services due, inspections, licence and insurance expiry, and pending approvals
-- Responsive layout for desktop, tablet and phone, with light and dark themes
+- Mobile-friendly layout: on phones, tables become stacked cards with action buttons, forms open as bottom sheets, the header stays visible while scrolling and the menu slides in; tablets get a 3-column KPI grid; light and dark themes
