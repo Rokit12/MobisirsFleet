@@ -1,86 +1,151 @@
 # Mobisirs Fleet Operations
 
-A single-page fleet management app for Mobisirs Bespoke Solutions. It covers vehicles, drivers, hotel allocations, GPS tracking, maintenance, NTSA inspections, fuel, cleaning, procurement, finance, reports, users and audit logs.
+Fleet management for Mobisirs Bespoke Solutions. It covers vehicles, drivers, hotel allocations, live GPS tracking, maintenance, NTSA inspections, fuel, cleaning, procurement, finance, reports, users and audit logs.
 
-Everything is in one file, `index.html`. There is no build step or server. [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause) is included inside the file. The only things loaded from the internet are the Inter font and the OpenStreetMap map tiles.
+The project has two parts:
 
-## Running it
+| Part | What it is |
+|---|---|
+| `backend/` | **FastAPI** server with a **SQLAlchemy** database (SQLite by default; PostgreSQL or MySQL by changing one setting). It handles sign-in, roles, all fleet records, the audit trail and GPS history. |
+| `index.html` | The web app: one file, no build step. [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause) is included inside it. The backend serves it at `/`. |
 
-- **Locally:** open `index.html` in a browser.
-- **GitHub Pages:** go to *Settings → Pages*, choose the `main` branch and the root folder, then open the published URL.
-- **Any static host:** upload `index.html`.
+## Quick start
 
-On first load the app creates a sample fleet: 4 hotels, 100 vehicles, 100 drivers and about three months of trips, fuel, cleaning, maintenance and inspections. To start from your own data, go to *Settings → Clear all data*.
+You need Python 3.11 or newer.
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Open http://localhost:8000 and sign in. Interactive API documentation is at http://localhost:8000/docs.
+
+On first start the server creates the database file `backend/mbs_fleet.db` and one administrator account. The database starts empty. On the dashboard, an admin can choose **Load sample data** to add the demo fleet (4 hotels, 100 vehicles, 100 drivers and about three months of records), or start by adding hotels and vehicles.
+
+### With Docker
+
+```bash
+docker build -t mbs-fleet .
+docker run -p 8000:8000 -v mbs-data:/data -e TRACKER_API_KEY=change-me mbs-fleet
+```
+
+The database and the token signing key are kept in the `/data` volume, so they survive rebuilds.
 
 ## Signing in
-
-The app opens on a landing page with a sign-in form.
 
 | | |
 |---|---|
 | Username | `admin` |
-| Temporary password | `Admin@2026` |
+| Temporary password | `Admin@2026` (change it with the `ADMIN_PASSWORD` setting before first start) |
 
-You must replace the temporary password on first sign-in. New passwords need at least 8 characters with letters and numbers. After five wrong attempts, sign-in is paused for 30 seconds.
+The server forces the temporary password to be replaced at first sign-in. Until it is replaced, the account can do nothing else. New passwords need at least 8 characters with letters and numbers. After five wrong attempts within a minute, sign-in is paused for that username.
 
 ### Users and roles
 
-Admins add people under **Users & Access → Add user**. The form generates a temporary password for you to copy and give to the person. They must replace it when they first sign in. Admins can also reset passwords, disable accounts and change roles. The app always keeps at least one active admin.
+Admins add people under **Users & Access → Add user**. The form generates a temporary password for you to copy and give to the person, who must replace it when they first sign in. Admins can also reset passwords, disable accounts and change roles. Disabling a user, changing their role or resetting their password ends their open sessions. The server always keeps at least one active admin.
 
 | Role | Can see | Can change |
 |---|---|---|
-| Admin | Everything | Everything, including users, settings and data backup |
+| Admin | Everything | Everything, including users, settings and data management |
 | Manager | All operations, finance, reports and audit logs | All fleet records, purchases and expenses; can delete records |
-| Dispatcher | Dashboard, tracking, fleet, hotels, drivers, maintenance, fuel, cleaning, inspections | Trips, GPS positions, fuel, cleaning and maintenance jobs |
+| Dispatcher | Dashboard, tracking, fleet, hotels, drivers, maintenance, fuel, cleaning, inspections | Trips, GPS positions, fuel, cleaning and maintenance jobs; a vehicle's status, odometer and position as a result |
 | Viewer | Operations, finance and reports | Nothing (read-only) |
 
-Every create, update, delete, sign-in and sign-out is written to **Audit Logs** with the name of the user who did it.
+The server enforces these rules on every request, not only the app. It writes the audit trail itself: every create, update and delete is recorded, with the user's name and the fields that changed, along with sign-ins and sign-outs.
 
-> **Security note:** sign-in is enforced inside the page. It controls what each person sees and can change in the app. It does not protect the data itself: anyone who can open the page can read the stored records in its source. Passwords are stored as salted, iterated SHA-256 hashes, never in plain text. For real data protection, host the app behind proper authentication or move the data to a server with its own access control.
+**Security:** passwords are stored as salted PBKDF2-SHA256 hashes, and sessions use signed tokens that expire after 12 hours. In production, serve the app over HTTPS, for example behind a reverse proxy, and set your own `SECRET_KEY` and `ADMIN_PASSWORD`.
 
 ## Live GPS tracking
 
-The **Live Tracking** page and the dashboard show a real **OpenStreetMap** street map (© OpenStreetMap contributors). It has zoom, pan, a scale bar and pins for each hotel. Each vehicle is drawn at its latest GPS position. Tapping a vehicle opens a popup with its details and an *Update position* button. Each vehicle shows:
+The **Live Tracking** page and the dashboard show an **OpenStreetMap** street map (© OpenStreetMap contributors), with hotel pins and every vehicle at its latest GPS position. Tapping a vehicle shows:
 
-- how old the position is: *Live* (15 minutes or less), *Last hour* or *Stale*
+- how old its position is: *Live* (15 minutes or less), *Last hour* or *Stale*
 - speed
-- straight-line distance to the nearest hotel or landmark
-- a scale bar
+- distance to the nearest landmark
+- an *Update position* button
 
-If street map tiles can't load (for example offline, or inside a claude.ai artifact, which blocks outside images), the app switches automatically to a drawn map of Nairobi. That map still places vehicles at their exact coordinates, but its roads are only approximate.
+Open pages check the server every 15 seconds, so new positions and other people's changes appear without reloading.
 
-Positions come from one of these sources:
+### Sending positions from trackers
 
-1. **Tracker feed import.** Go to *Live Tracking → Import tracker feed* and paste or upload a CSV export from your GPS tracking system. Click *Check file* to preview what will change, then *Apply updates*.
+Set `TRACKER_API_KEY` on the server. Then your tracking system, your provider's webhook, or a small forwarding script can post readings:
 
-   ```csv
-   reg,latitude,longitude,timestamp,speed
-   KDA 123A,-1.29890,36.81580,2026-11-25 09:30,0
-   KDB 456B,-1.31920,36.92780,2026-11-25 09:31,48
-   ```
+```bash
+curl -X POST http://localhost:8000/api/gps/positions \
+  -H "X-Tracker-Key: change-me" -H "Content-Type: application/json" \
+  -d '{"readings":[{"reg":"KDA 123A","lat":-1.29890,"lng":36.81580,"timestamp":"2026-11-25T09:30:00+03:00","speed":42}]}'
+```
 
-   - Column names are flexible: `plate`/`registration`, `lat`/`lng`/`lon`, and `time`/`datetime` all work.
-   - Commas, semicolons and tabs all work as separators.
-   - Timestamps can be ISO dates or Unix seconds or milliseconds.
-   - Readings older than a vehicle's current position are skipped.
+- Identify each vehicle by `reg`; spacing and letter case don't matter. You can send `vehicleId` instead.
+- `timestamp` can be an ISO time, `YYYY-MM-DD HH:MM` (in `APP_TIMEZONE`), or Unix seconds or milliseconds. Leave it out to use the time the server receives the reading.
+- Up to 10,000 readings fit in one request.
+- Every reading is kept as history. A reading older than the vehicle's current position goes into history only.
+- `GET /api/gps/track/{vehicleId}?hours=24` returns a vehicle's route history.
 
-2. **Manual update.** Click *Update* on a vehicle, or *Update position* in its map popup. Then either type the coordinates or choose *Pick on map* and tap the vehicle's location on the street map.
+Signed-in admins, managers and dispatchers can also import a tracker's CSV export (*Live Tracking → Import tracker feed*) or set a position by hand (*Update*, then type the coordinates or *Pick on map*).
 
-The app does not stream positions from trackers by itself. For fully live positions, connect your tracking provider's API to the import format above, for example with a small script that writes the CSV on a schedule.
+## Configuration
 
-## Where data is stored
+All settings are environment variables:
 
-- **Static host or local file:** records are saved in the browser's `localStorage`. Each browser has its own copy, so use *Settings → Export backup / Import backup* to move data between browsers.
-- **Claude artifact:** the app saves records into the published page itself, so everyone who opens it sees the same data. Saving requires edit access to the artifact.
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | `sqlite:///backend/mbs_fleet.db` | Any SQLAlchemy URL, e.g. `postgresql+psycopg://user:pass@host/mbs_fleet` (install the driver, e.g. `psycopg[binary]`) |
+| `SECRET_KEY` | generated and stored in `SECRET_KEY_FILE` | Signs sign-in tokens |
+| `SECRET_KEY_FILE` | `backend/.secret_key` | Where the generated key is kept |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_NAME` | `admin` / `Admin@2026` / `Admin User` | First administrator, created only when there are no users |
+| `TRACKER_API_KEY` | empty (disabled) | Key trackers send in `X-Tracker-Key` |
+| `TOKEN_HOURS` | `12` | Session length |
+| `APP_TIMEZONE` | `Africa/Nairobi` | Time zone for audit times and tracker times without an offset |
+| `CORS_ORIGINS` | empty | Comma-separated origins allowed to call the API when `index.html` is hosted elsewhere |
+| `FRONTEND_FILE` | `index.html` in the repo root | Page served at `/` |
+
+To host `index.html` somewhere other than the backend (for example GitHub Pages), put the server address in the page's `<meta name="mbs-api" content="https://your-server">` tag and add that page's origin to `CORS_ORIGINS`.
+
+## API overview
+
+| Method and path | Purpose |
+|---|---|
+| `POST /api/auth/login` | Sign in; returns a token |
+| `POST /api/auth/change-password` | Replace a temporary or current password |
+| `GET /api/bootstrap` | All records the user may see, plus settings and audit |
+| `POST /api/sync` | Create, update and delete records in one transaction |
+| `GET /api/data/{collection}` | Read one collection, e.g. `vehicles`, `trips`, `fuel` |
+| `GET/POST/PATCH/DELETE /api/users…` | Manage users (admin only) |
+| `GET/PUT /api/settings` | Company settings (changes by admin only) |
+| `GET /api/audit` | Audit trail (admins and managers) |
+| `POST /api/gps/positions` | Receive GPS readings |
+| `GET /api/gps/track/{vehicleId}` | Position history |
+
+The full schema is in `/docs`.
+
+## Database tables
+
+`hotels`, `vehicles`, `drivers`, `trips`, `maintenance`, `fuel`, `wash`, `inspections`, `procurement`, `expenses`, `activities`, `users`, `settings`, `audit_log`, `gps_fixes` and `meta`. The fleet tables are defined in one schema in `backend/app/models.py`. Every fleet row records who last changed it and when.
+
+## Tests
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+## Offline mode
+
+If `index.html` is opened without the backend (as a local file, on a static host, or as a claude.ai artifact), it still works. In that case records are stored in the browser (or in the claude.ai page). Sign-in then only controls what each person sees and can change in the app; it does not protect the data. Use the backend for real multi-user work.
 
 ## Features
 
-- Dashboard with KPIs, OpenStreetMap live map, recent activity, expenditure donut, maintenance alerts, NTSA countdown, weekly fuel and cleaning chart, and hotel allocation
+- Dashboard with KPIs, live street map, recent activity, expenditure donut, maintenance alerts, NTSA countdown, weekly fuel and cleaning chart, and hotel allocation
 - Fleet management: add, edit and delete vehicles; dispatch trips and end them (ending a trip adds the distance to the odometer)
 - Maintenance workflow, from *Scheduled* to *In progress* to *Completed*; vehicle status and next service update automatically
 - NTSA inspection records and a due schedule; a failed inspection marks the vehicle out of service
-- Fuel log with km/L efficiency, cleaning log with *cleaning due* list, and procurement approvals (Requested → Approved → Ordered → Received)
+- Fuel log with km/L efficiency, cleaning log with a *cleaning due* list, and procurement approvals (Requested → Approved → Ordered → Received)
 - Finance ledger built automatically from every module, monthly budget and period comparison
 - Reports by vehicle, hotel, driver and month, with CSV export from every table
 - Alerts bell covering high-priority repairs, services due, inspections, licence and insurance expiry, and pending approvals
-- Mobile-friendly layout: on phones, tables become stacked cards with action buttons, forms open as bottom sheets, the header stays visible while scrolling and the menu slides in; tablets get a 3-column KPI grid; light and dark themes
+- Works on phones and tablets: on phones, tables become stacked cards and forms open as bottom sheets; light and dark themes

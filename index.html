@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8" data-app>
 <meta name="viewport" content="width=device-width, initial-scale=1" data-app>
+<!-- Fleet server address. Leave empty when the FastAPI backend serves this page. -->
+<meta name="mbs-api" content="" data-app>
 <title data-app>Mobisirs Fleet Operations</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" data-app>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" data-app>
@@ -978,7 +980,7 @@ const ksh=n=>'KSh '+num(n);
 const sumBy=(a,k)=>a.reduce((s,x)=>s+(typeof k==='function'?k(x):Number(x[k])||0),0);
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const daysTo=s=>Math.round((parseD(s)-parseD(ymd(new Date())))/864e5);
-const LS='mbs-fleet-v1',US='mbs-fleet-ui',SK='mbs-session',FK='mbs-fails';
+const LS='mbs-fleet-v1',US='mbs-fleet-ui',SK='mbs-session',TK='mbs-token',FK='mbs-fails';
 const SHA=(()=>{const K=[],H0=[];let p=2,c=0;const fr=x=>(x-Math.floor(x))*4294967296|0;
   while(c<64){let pr=1;for(let d=2;d*d<=p;d++)if(p%d===0){pr=0;break}if(pr){if(c<8)H0[c]=fr(Math.pow(p,1/2));K[c++]=fr(Math.pow(p,1/3))}p++}
   const r=(x,y)=>x>>>y|x<<(32-y);
@@ -1095,7 +1097,46 @@ try{const u=JSON.parse(sessionStorage.getItem(US)||'null');if(u)ui=Object.assign
 const storeUi=()=>{try{ui.scroll=scrollY;sessionStorage.setItem(US,JSON.stringify(ui))}catch(e){}};
 let ART=null,DL=null,canWrite=true,pubTimer=null,sync={s:'local',at:state.savedAt};
 function buildDoc(){const c=TEMPLATE.cloneNode(true);c.querySelector('#fleet-state').textContent=JSON.stringify(state).replace(/</g,'\\u003c');return'<!DOCTYPE html>\n'+c.outerHTML}
-function save(){state.savedAt=new Date().toISOString();sync.at=state.savedAt;try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}
+/* ---------- server (FastAPI) mode: data lives in the database ---------- */
+const API={on:false,token:null,rev:0,base:'api/',pend:null};
+{const m=document.querySelector('meta[name="mbs-api"]'),b=(m&&m.content||'').trim().replace(/\/$/,'');if(b)API.base=b+'/api/'}
+async function api(path,opt={}){const h={'Content-Type':'application/json'};if(API.token)h.Authorization='Bearer '+API.token;
+  const r=await fetch(API.base+path,{method:opt.method||'GET',headers:h,body:opt.body!==undefined?JSON.stringify(opt.body):undefined});let d=null;try{d=await r.json()}catch(e){}
+  if(!r.ok){const det=d&&d.detail,er=new Error(typeof det==='string'?det:Array.isArray(det)?det.map(x=>x.msg).join('; '):(r.statusText||'Request failed'));er.status=r.status;throw er}return d}
+async function detectApi(){try{const c=new AbortController(),t=setTimeout(()=>c.abort(),3000),r=await fetch(API.base+'health',{signal:c.signal,cache:'no-store'});clearTimeout(t);if(!r.ok)return false;const d=await r.json();return!!d&&d.app==='mbs-fleet'}catch(e){return false}}
+const SYNC_C=['hotels','vehicles','drivers','trips','maintenance','fuel','wash','inspections','procurement','expenses','activities'];
+let SNAP={},syncT=null,syncing=false;
+function emptyState(){return{v:1,settings:{company:'Mobisirs Bespoke Solutions',fuelPrice:172,serviceInterval:5000,budget:3500000,warnDays:30},users:[],hotels:[],vehicles:[],drivers:[],trips:[],maintenance:[],fuel:[],wash:[],inspections:[],procurement:[],expenses:[],activities:[],audit:[]}}
+function snapshot(){SNAP={};for(const c of SYNC_C){const m=new Map();for(const r of state[c]||[])m.set(r.id,JSON.stringify(r));SNAP[c]=m}}
+async function loadAll(){const d=await api('bootstrap');state=Object.assign(emptyState(),d.data);state.settings=Object.assign(emptyState().settings,d.settings);state.users=d.users;state.audit=d.audit||[];API.rev=d.rev;ME=d.me.id;snapshot()}
+const keepToken=t=>{API.token=t;try{t?sessionStorage.setItem(TK,t):sessionStorage.removeItem(TK)}catch(e){}};
+function sessionEnded(msg){keepToken(null);ME=null;state=emptyState();SNAP={};closeModal();renderLanding();if(msg)toast(msg,1)}
+async function pushSync(){syncT=null;if(syncing){syncT=setTimeout(pushSync,250);return}
+  const up={},del={},sent=[];let n=0;
+  for(const c of SYNC_C){const m=SNAP[c]||(SNAP[c]=new Map()),seen=new Set();
+    for(const r of state[c]){seen.add(r.id);const j=JSON.stringify(r);if(m.get(r.id)!==j){(up[c]=up[c]||[]).push(r);sent.push([c,r.id,j]);n++}}
+    for(const id of m.keys())if(!seen.has(id)){(del[c]=del[c]||[]).push(id);sent.push([c,id,null]);n++}}
+  if(!n){sync.s='saved';renderFoot();return}
+  syncing=true;sync.s='saving';renderFoot();
+  try{const r=await api('sync',{method:'POST',body:{upserts:up,deletes:del}});
+    for(const[c,id,j]of sent){if(j===null)SNAP[c].delete(id);else SNAP[c].set(id,j)}
+    API.rev=r.rev;sync.s='saved';sync.at=new Date().toISOString();
+    if(r.audit&&r.audit.length){state.audit=r.audit;if(cur()==='audit-logs'&&$('#modal').hidden)renderTable('audit')}}
+  catch(e){sync.s='error';if(e.status===401)return sessionEnded(e.message);toast('Not saved: '+e.message,1);
+    if([400,403,409,413,422].includes(e.status)){try{await loadAll();rerender()}catch(x){}}}
+  finally{syncing=false;renderFoot()}}
+async function pollRev(){if(!API.on||!API.token||!me()||syncing||syncT||!$('#modal').hidden||ui.pick)return;
+  const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return;
+  try{const r=await api('rev');if(r.rev!==API.rev&&!syncing&&!syncT){await loadAll();rerender()}}catch(e){if(e.status===401)sessionEnded('Your session has ended. Please sign in again.')}}
+async function apiLogin(un,pw,err){try{const d=await api('auth/login',{method:'POST',body:{username:un,password:pw}});keepToken(d.token);
+    if(d.user.mustChange){lmode='change';pendingU=d.user.id;API.pend={user:d.user,pw};renderLanding();return}
+    await loadAll();finishLogin(me())}catch(e){err(e.message)}}
+async function apiUser(old,o){const body={name:o.name,username:o.username,email:o.email||'',phone:o.phone||'',role:o.role,status:o.status};
+  try{if(old)Object.assign(old,await api(`users/${old.id}`,{method:'PATCH',body}));else state.users.unshift(await api('users',{method:'POST',body:{...body,password:o.password}}));
+    closeModal();rerender();toast(`User ${old?'updated':'added'}.`)}catch(e){const x=$('#ferr');if(x)x.textContent=e.message;else toast(e.message,1)}}
+function emptyBanner(){if(state.vehicles.length||state.hotels.length)return'';const ad=role()==='Admin';
+  return`<section class="card" style="padding:18px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="kic c-b">${ic('doc')}</span><span style="flex:1 1 260px"><b style="font-size:17px;display:block">Your fleet database is empty</b><span style="color:var(--mut)">${ad?'Load the sample fleet to explore, or start by adding your hotels and vehicles.':'An administrator needs to add hotels and vehicles first.'}</span></span>${ad?`<button class="btn ghost" data-nav="hotels">${ic('hotel')}Add hotels</button><button class="btn primary" data-act="reseed">${ic('download')}Load sample data</button>`:''}</section>`}
+function save(){if(API.on){sync.s='saving';renderFoot();clearTimeout(syncT);syncT=setTimeout(pushSync,300);return}state.savedAt=new Date().toISOString();sync.at=state.savedAt;try{localStorage.setItem(LS,JSON.stringify(state))}catch(e){}
   if(ART&&canWrite){sync.s='saving';clearTimeout(pubTimer);pubTimer=setTimeout(publish,1400)}else sync.s=ART?'readonly':'local';renderFoot()}
 async function publish(){storeUi();try{await ART.publish(buildDoc());sync.s='saved'}catch(e){const c=String(e&&(e.code||e.name||e.message)||e);
   if(/not_granted|not_writer/.test(c)){canWrite=false;sync.s='readonly'}else if(/conflict/.test(c)){sync.s='conflict'}else sync.s='error';}renderFoot()}
@@ -1262,7 +1303,7 @@ const MOD={
   validate:(r,old)=>{r.username=String(r.username).toLowerCase().trim();if(!/^[a-z0-9._-]{3,32}$/.test(r.username))return'Username must be 3–32 letters, numbers, dots, dashes or underscores.';if(state.users.some(u=>u.username===r.username&&u!==old))return'That username is already taken.';
     if(old&&old.role==='Admin'&&old.status==='Active'&&(r.role!=='Admin'||r.status!=='Active')&&!state.users.some(u=>u!==old&&u.role==='Admin'&&u.status==='Active'))return'There must always be at least one active admin.';
     if(old&&old.id===ME&&r.status!=='Active')return'You cannot disable your own account.';
-    if(!old){if(!pwOk(String(r.password)))return'Temporary password needs at least 8 characters with letters and numbers.';setPw(r,String(r.password));r.mustChange=true;r.created=ymd(new Date());r.lastLogin=''}delete r.password},
+    if(!old){if(!pwOk(String(r.password)))return'Temporary password needs at least 8 characters with letters and numbers.';if(!API.on){setPw(r,String(r.password));r.mustChange=true;r.created=ymd(new Date());r.lastLogin=''}}if(!API.on)delete r.password},
   cols:[{k:'name',l:'Name',h:r=>`<b>${esc(r.name)}</b>${r.id===ME?' <small style="color:var(--mut)">(you)</small>':''}`},{k:'username',l:'Username'},{k:'email',l:'Email'},{k:'role',l:'Role',h:r=>pill(r.role)},{k:'status',l:'Status',h:r=>pill(r.status)},{k:'pw',l:'Password',t:r=>r.mustChange?'Temporary':'Set by user',h:r=>r.mustChange?pill('Temporary'):'Set by user'},{k:'lastLogin',l:'Last sign-in',h:r=>esc(r.lastLogin?fDT(r.lastLogin):'Never')}],
   filters:[{k:'role',l:'All roles',o:()=>Object.keys(ROLES)},{k:'status',l:'All statuses',o:()=>['Active','Disabled']}],
   rowActs:()=>[{a:'reset',l:'Reset password',i:'gear'}],acts:{reset:r=>resetPw(r)},
@@ -1428,7 +1469,8 @@ function openImport(){if(!canEdit('gps'))return deny();openModal('Import tracker
 /* ---------- dashboard ---------- */
 function card(title,icon,body,link,extra,cls){return`<section class="card ${cls||''}"><div class="ch"><h2 title="${esc(title)}">${ic(icon)}<span>${esc(title)}</span></h2><span class="grow"></span>${extra||''}${link?`<button class="link" data-nav="${link[0]}"${link[1]?` data-tab="${link[1]}"`:''}>${esc(link[2]||'View All')}${ic('arrow')}</button>`:''}</div>${body}</section>`}
 const AK={gps:['pin','c-b'],journey:['car','c-b'],repair:['wrench','c-o'],fuel:['fuel','c-g'],inspection:['shield','c-p'],wash:['drop','c-b'],alert:['alert','c-r']};
-function renderDash(){const vs=state.vehicles,n=vs.length||1,c=s=>vs.filter(v=>v.status===s).length,op=c('Available')+c('On Journey');
+function renderDash(){return emptyBanner()+renderDashBody()}
+function renderDashBody(){const vs=state.vehicles,n=vs.length||1,c=s=>vs.filter(v=>v.status===s).length,op=c('Available')+c('On Journey');
   const P=period('month'),L=sumBy(state.fuel.filter(f=>inR(f.date,P.cur)),'litres'),Lp=sumBy(state.fuel.filter(f=>inR(f.date,P.prev)),'litres'),fch=pctCh(L,Lp);
   const wm=state.wash.filter(w=>inR(w.date,P.cur)),wu=new Set(wm.map(w=>w.vehicleId)).size,nw=vs.filter(v=>inR(v.createdAt,P.cur)).length;
   const kp=(l,v,sub,ic_,cc,pct,col,nav,f)=>`<button class="kpi" data-nav="${nav}"${f?` data-filter="${f}"`:''}><span class="kic ${cc}">${ic(ic_)}</span><span style="flex:1"><span class="l">${l}</span><span class="v" style="display:block">${v}</span>${sub}${pct!=null?`<span class="bar"><i style="width:${pct}%;background:${col}"></i></span>`:''}</span></button>`;
@@ -1466,13 +1508,13 @@ function resetPw(r){if(!canEdit('users'))return deny();const pw=tempPw();
 let lmode='login',pendingU=null;
 function renderLanding(){document.body.classList.add('locked');$('#landing').hidden=false;$('#bellpop').hidden=true;$('#profpop').hidden=true;
   $('#lbg').innerHTML=`<svg viewBox="0 0 ${MW} ${MH}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="#fff" stroke-linecap="round">${ROADS.map(r=>`<path d="${llPath(r.p)}" stroke-width="${r.w/2}"/>`).join('')}</g>${state.hotels.filter(hasFix).map(h=>{const[x,y]=proj(+h.lat,+h.lng);return`<circle cx="${x}" cy="${y}" r="6" fill="#f59e0b"/>`}).join('')}</svg>`;
-  const b=$('#loginbox'),u=pendingU&&state.users.find(x=>x.id===pendingU);
+  const b=$('#loginbox'),u=pendingU&&(state.users.find(x=>x.id===pendingU)||API.pend?.user);
   if(lmode==='change'&&u)b.innerHTML=`<h2>Set your password</h2><p>Welcome, ${esc(u.name)}. Choose a new password to replace your temporary one.</p><form id="changef" novalidate><label>New password<span class="pw"><input type="password" name="p1" autocomplete="new-password"><button type="button" data-act="showpw">Show</button></span></label><label>Confirm new password<input type="password" name="p2" autocomplete="new-password"></label><p class="lerr" id="lerr" role="alert"></p><button class="btn primary">${ic('check')}Save password and continue</button><button type="button" class="link" data-act="lback" style="justify-content:center">Back to sign in</button></form><p class="lnote">At least 8 characters, using both letters and numbers.</p>`;
   else{lmode='login';b.innerHTML=`<h2>Sign in</h2><p>Use the username and password your administrator gave you.</p><form id="loginf" novalidate><label>Username<input name="u" autocomplete="username" autocapitalize="none" spellcheck="false"></label><label>Password<span class="pw"><input type="password" name="p" autocomplete="current-password"><button type="button" data-act="showpw">Show</button></span></label><p class="lerr" id="lerr" role="alert"></p><button class="btn primary">${ic('arrow')}Sign in</button></form><p class="lnote">Forgot your password? Ask an administrator to reset it under Users &amp; Access. You stay signed in until you log out or close this tab.</p>`}
   setTimeout(()=>b.querySelector('input')?.focus(),40)}
-function finishLogin(u,persist){ME=u.id;try{sessionStorage.setItem(SK,u.id)}catch(e){}u.lastLogin=stamp(new Date());audit('System','Session',u.username,'Signed in');lmode='login';pendingU=null;
-  if(!canPage(cur()))history.replaceState(null,'','#dashboard');render();scrollTo(0,0);if(persist)save();toast(`Welcome, ${u.name.split(' ')[0]}.`)}
-function logout(){const u=me();if(u)audit('System','Session',u.username,'Signed out');ME=null;try{sessionStorage.removeItem(SK)}catch(e){}closeModal();renderLanding()}
+function finishLogin(u,persist){ME=u.id;if(!API.on){try{sessionStorage.setItem(SK,u.id)}catch(e){}u.lastLogin=stamp(new Date());audit('System','Session',u.username,'Signed in')}API.pend=null;sync.s=API.on?'saved':sync.s;lmode='login';pendingU=null;
+  if(!canPage(cur()))history.replaceState(null,'','#dashboard');render();scrollTo(0,0);if(persist&&!API.on)save();toast(`Welcome, ${u.name.split(' ')[0]}.`)}
+function logout(){if(API.on){api('auth/logout',{method:'POST'}).catch(()=>{});return sessionEnded()}const u=me();if(u)audit('System','Session',u.username,'Signed out');ME=null;try{sessionStorage.removeItem(SK)}catch(e){}closeModal();renderLanding()}
 const fails=()=>{try{return JSON.parse(sessionStorage.getItem(FK)||'{"n":0,"until":0}')}catch(e){return{n:0,until:0}}};
 const setFails=f=>{try{sessionStorage.setItem(FK,JSON.stringify(f))}catch(e){}};
 function renderHotels(){return`${tiles([['Hotels',state.hotels.length,`${state.hotels.filter(h=>h.status==='Active').length} active`],['Vehicles allocated',state.vehicles.filter(v=>H(v.hotelId)).length,`of ${state.vehicles.length}`],['Drivers allocated',state.drivers.filter(d=>H(d.hotelId)).length,`of ${state.drivers.length}`],['On the road now',state.vehicles.filter(v=>v.status==='On Journey').length,'Live positions on the map','t-b']])}
@@ -1501,7 +1543,7 @@ function renderNav(){const pg=cur(),al=alerts().length;$('#nav').innerHTML=Objec
   const U=me(),ini=U.name.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase();$('#mename').textContent=U.name;$('#merole').textContent=U.role;$('#meav').textContent=ini;$('#topav').textContent=ini;$('#topname').textContent=U.name.split(' ')[0];
   const b=$('#bellc');b.hidden=!al;b.textContent=al>99?'99+':al}
 function renderFoot(){const f=$('#foot');if(!f)return;const v=state.vehicles.slice().sort((a,b)=>(a.nextServiceKm-a.odometer)-(b.nextServiceKm-b.odometer))[0],P=period('month'),t=Object.values(spend(P.cur)).reduce((a,b)=>a+b,0);
-  const at=sync.at?fT(stamp(new Date(sync.at))):'—';const S={local:['All records are up to date',`Saved in this browser · ${at}`,'var(--green)'],saved:['All records are up to date',`Last sync: ${at}`,'var(--green)'],saving:['Saving changes…','Syncing to the shared record','var(--blue)'],readonly:['View-only access','Changes are kept in this browser only','var(--orange)'],conflict:['Someone else saved first','Reloading their version','var(--orange)'],error:['Could not sync','Saved in this browser; will retry on next change','var(--red)']}[sync.s]||['All records are up to date','','var(--green)'];
+  const at=sync.at?fT(stamp(new Date(sync.at))):'—';const S=(API.on?{saved:['All records are up to date',`Saved to database · ${at}`,'var(--green)'],saving:['Saving changes…','Writing to the database','var(--blue)'],error:['Could not save','Your last change was not stored. Check the connection.','var(--red)']}:{local:['All records are up to date',`Saved in this browser · ${at}`,'var(--green)'],saved:['All records are up to date',`Last sync: ${at}`,'var(--green)'],saving:['Saving changes…','Syncing to the shared record','var(--blue)'],readonly:['View-only access','Changes are kept in this browser only','var(--orange)'],conflict:['Someone else saved first','Reloading their version','var(--orange)'],error:['Could not sync','Saved in this browser; will retry on next change','var(--red)']})[sync.s]||['All records are up to date','','var(--green)'];
   const r=v?v.nextServiceKm-v.odometer:0;
   f.innerHTML=`<div><span class="fi" style="background:${S[2]};color:#fff">${ic(sync.s==='error'?'alert':'check','width:24px;height:24px')}</span><span><b>${S[0]}</b><small>${esc(S[1])}</small></span></div>
   <div><span class="fi c-b">${ic('calc')}</span><span><b>Next service: ${esc(v?v.reg:'—')}</b><small>${v?(r<0?`Overdue by ${num(-r)} km`:`in ${num(r)} km`):''}</small></span></div>
@@ -1531,13 +1573,14 @@ function openForm(k,rec,preset){if(!canEdit(k))return deny();const m=MOD[k],isNe
     for(const f of m.fields.filter(f=>isNew||!f.newOnly)){let v=String(fd.get(f.k)??'').trim();if(f.req&&!v){$('#ferr').textContent=`${f.l} is required.`;$('#f_'+f.k)?.focus();return}o[f.k]=f.t==='number'?(v===''?'':Number(v)):v}
     const err=m.validate?m.validate(o,isNew?null:rec):'';if(err){$('#ferr').textContent=err;return}commit(k,isNew?null:rec,o)}}
 function diff(a,b,m){return m.fields.filter(f=>f.k!=='password'&&String(a[f.k]??'')!==String(b[f.k]??'')).map(f=>`${f.l}: ${a[f.k]===''||a[f.k]==null?'—':a[f.k]} → ${b[f.k]===''||b[f.k]==null?'—':b[f.k]}`).join('; ')}
-function commit(k,old,o){const m=MOD[k];let rec;const before=old?{...old}:null;
+function commit(k,old,o){if(k==='users'&&API.on)return apiUser(old,o);const m=MOD[k];let rec;const before=old?{...old}:null;
   if(old){Object.assign(old,o);rec=old}else{rec=Object.assign(o,{id:uid(k.slice(0,2))});state[m.store].unshift(rec)}
   m.after&&m.after(rec,before);audit(old?'Updated':'Created',m.tab,m.ref(rec),old?diff(before,rec,m)||'No field changes':'');
   closeModal();save();rerender();toast(`${m.one[0].toUpperCase()+m.one.slice(1)} ${old?'updated':'added'}.`)}
 function quick(k,r,ch){if(!canEdit(k))return deny();const m=MOD[k],before={...r};Object.assign(r,ch);const err=m.validate?m.validate(r,before):'';if(err){Object.assign(r,before);toast(err,1);return}m.after&&m.after(r,before);audit('Updated',m.tab,m.ref(r),diff(before,r,m));save();rerender();toast(`${m.ref(r)} updated.`)}
 async function del(k,r){if(!canDel(k))return deny();const m=MOD[k],why=m.canDelete?m.canDelete(r):'';if(why){toast(why,1);return}
   if(!await ask(`Delete ${m.one}?`,`${m.ref(r)} will be removed permanently. This is recorded in the audit log.`,'Delete',1))return;
+  if(k==='users'&&API.on){try{await api(`users/${r.id}`,{method:'DELETE'});state.users.splice(state.users.indexOf(r),1);rerender();toast(`${m.ref(r)} deleted.`)}catch(e){toast(e.message,1)}return}
   const a=state[m.store],i=a.indexOf(r);if(i>=0)a.splice(i,1);m.afterDelete&&m.afterDelete(r);audit('Deleted',m.tab,m.ref(r),'');save();rerender();toast(`${m.ref(r)} deleted.`)}
 const csvCell=v=>{const s=String(v??'');return/[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s};
 async function offer(name,data,mime){if(DL){try{await DL.save({filename:name,data,mimeType:mime});toast(`${name} saved.`);return}catch(e){}}
@@ -1585,7 +1628,7 @@ document.addEventListener('click',async e=>{
   else if(a==='profile'){const p=$('#profpop'),U=me();$('#bellpop').hidden=true;p.innerHTML=`<h4>${esc(U.name)}<br><small style="font-weight:500;color:var(--mut)">${esc(U.role)} · ${esc(U.username)}</small></h4><button class="it" data-act="chpw">${ic('gear')}<b>Change password</b></button>${canPage('users')?`<button class="it" data-nav="users">${ic('users')}<b>Users &amp; Access</b></button>`:''}${canPage('system-settings')?`<button class="it" data-nav="system-settings">${ic('gear')}<b>Settings</b></button>`:''}${canPage('audit-logs')?`<button class="it" data-nav="audit-logs">${ic('audit')}<b>Audit logs</b></button>`:''}<button class="it" data-act="logout">${ic('x')}<b>Log out</b></button>`;p.hidden=!p.hidden}
   else if(a==='logout'){$('#profpop').hidden=true;logout()}
   else if(a==='backup')offer(`mbs-fleet-backup-${ymd(new Date())}.json`,JSON.stringify(state,null,1),'application/json');
-  else if(a==='reseed'){if(await ask('Load sample data?','All current records will be replaced by the sample fleet.','Replace data',1)){const us=state.users;state=migrate(seed());state.users=us;audit('System','Data','—','Sample data reloaded');save();rerender();toast('Sample data loaded.')}}
+  else if(a==='reseed'){if(!canPage('system-settings'))return deny();if(await ask('Load sample data?','All current records will be replaced by the sample fleet.','Replace data',1)){const us=state.users;state=migrate(seed());state.users=us;audit('System','Data','—','Sample data reloaded');save();rerender();toast('Sample data loaded.')}}
   else if(a==='wipe'){if(await ask('Clear all data?','Every vehicle, driver, hotel and record will be deleted. Export a backup first if you may need it.','Clear everything',1)){const S=state.settings;state={v:1,settings:S,users:state.users,hotels:[],vehicles:[],drivers:[],trips:[],maintenance:[],fuel:[],wash:[],inspections:[],procurement:[],expenses:[],activities:[],audit:[]};audit('System','Data','—','All data cleared');save();rerender();toast('All data cleared.')}}
 });
 document.addEventListener('input',e=>{const k=e.target.dataset.q;if(k){const u=um(k);u.q=e.target.value;u.p=0;renderTable(k);storeUi()}});
@@ -1596,20 +1639,20 @@ document.addEventListener('change',async e=>{const t=e.target;
   else if(t.id==='gpsfile'&&t.files[0]){$('#gpstxt').value=await t.files[0].text();t.value='';$('#gpsres').textContent='File loaded. Select Check file.'}
   else if(t.id==='impf'&&t.files[0]){try{const d=JSON.parse(await t.files[0].text());const need=['vehicles','drivers','hotels','trips','fuel','wash','maintenance','inspections','procurement','expenses'];if(!need.every(x=>Array.isArray(d[x])))throw 0;
     if(!await ask('Restore backup?',`This replaces all records with ${d.vehicles.length} vehicles and ${d.drivers.length} drivers from the file.`,'Restore'))return;
-    d.activities=d.activities||[];d.audit=d.audit||[];d.settings=Object.assign({},state.settings,d.settings||{});if(!Array.isArray(d.users)||!d.users.length)d.users=state.users;state=migrate(d);audit('System','Data','—','Backup restored from '+t.files[0].name);save();rerender();toast('Backup restored.')}catch(x){toast('That file is not a valid fleet backup.',1)}t.value=''}});
-document.addEventListener('submit',e=>{const F=e.target,id=F.id;if(['loginf','changef','pwform','gpsform','resetf'].includes(id)){e.preventDefault();const fd=new FormData(F),err=m=>{const x=F.querySelector('.lerr,.ferr');if(x)x.textContent=m};
+    d.activities=d.activities||[];d.audit=d.audit||[];d.settings=Object.assign({},state.settings,d.settings||{});if(API.on||!Array.isArray(d.users)||!d.users.length)d.users=state.users;state=migrate(d);if(API.on)api('settings',{method:'PUT',body:state.settings}).catch(()=>{});audit('System','Data','—','Backup restored from '+t.files[0].name);save();rerender();toast('Backup restored.')}catch(x){toast('That file is not a valid fleet backup.',1)}t.value=''}});
+document.addEventListener('submit',async e=>{const F=e.target,id=F.id;if(['loginf','changef','pwform','gpsform','resetf'].includes(id)){e.preventDefault();const fd=new FormData(F),err=m=>{const x=F.querySelector('.lerr,.ferr');if(x)x.textContent=m};
     if(id==='loginf'){const fl=fails();if(fl.until>Date.now())return err(`Too many attempts. Try again in ${Math.ceil((fl.until-Date.now())/1000)} seconds.`);
-      const un=String(fd.get('u')).trim().toLowerCase(),pw=String(fd.get('p'));if(!un||!pw)return err('Enter your username and password.');
+      const un=String(fd.get('u')).trim().toLowerCase(),pw=String(fd.get('p'));if(!un||!pw)return err('Enter your username and password.');if(API.on){F.querySelector('button.primary').disabled=true;await apiLogin(un,pw,err);const bt=F.querySelector('button.primary');if(bt)bt.disabled=false;return}
       const u=state.users.find(x=>x.username===un);if(!u||u.hash!==pwHash(u.salt,pw)){fl.n++;if(fl.n>=5){fl.until=Date.now()+30000;fl.n=0}setFails(fl);return err('Username or password is incorrect.')}
       if(u.status!=='Active')return err('This account is disabled. Contact an administrator.');setFails({n:0,until:0});
       if(u.mustChange){lmode='change';pendingU=u.id;renderLanding();return}finishLogin(u,false)}
-    else if(id==='changef'){const u=state.users.find(x=>x.id===pendingU),p1=String(fd.get('p1')),p2=String(fd.get('p2'));if(!u)return renderLanding();
+    else if(id==='changef'){const u=state.users.find(x=>x.id===pendingU),p1=String(fd.get('p1')),p2=String(fd.get('p2'));if(API.on&&API.pend){if(!pwOk(p1))return err('Use at least 8 characters with both letters and numbers.');if(p1!==p2)return err('The two passwords do not match.');try{const d=await api('auth/change-password',{method:'POST',body:{current_password:API.pend.pw,new_password:p1}});keepToken(d.token);await loadAll();finishLogin(me())}catch(x){err(x.message)}return}if(!u)return renderLanding();
       if(!pwOk(p1))return err('Use at least 8 characters with both letters and numbers.');if(p1!==p2)return err('The two passwords do not match.');if(u.hash===pwHash(u.salt,p1))return err('Choose a password different from the temporary one.');
       setPw(u,p1);u.mustChange=false;ME=u.id;audit('Updated','Users',u.username,'Password set at first sign-in');finishLogin(u,true)}
-    else if(id==='pwform'){const u=me(),p0=String(fd.get('p0')),p1=String(fd.get('p1')),p2=String(fd.get('p2'));if(u.hash!==pwHash(u.salt,p0))return err('Current password is incorrect.');
+    else if(id==='pwform'){const u=me(),p0=String(fd.get('p0')),p1=String(fd.get('p1')),p2=String(fd.get('p2'));if(API.on){if(!pwOk(p1))return err('Use at least 8 characters with both letters and numbers.');if(p1!==p2)return err('The two new passwords do not match.');try{const d=await api('auth/change-password',{method:'POST',body:{current_password:p0,new_password:p1}});keepToken(d.token);closeModal();toast('Password changed.')}catch(x){err(x.message)}return}if(u.hash!==pwHash(u.salt,p0))return err('Current password is incorrect.');
       if(!pwOk(p1))return err('Use at least 8 characters with both letters and numbers.');if(p1!==p2)return err('The two new passwords do not match.');setPw(u,p1);u.mustChange=false;audit('Updated','Users',u.username,'Password changed');closeModal();save();toast('Password changed.')}
     else if(id==='resetf'){if(!canEdit('users'))return deny();const u=state.users.find(x=>x.id===F.dataset.id),pw=String(fd.get('pw')).trim();if(!pwOk(pw))return err('Use at least 8 characters with both letters and numbers.');
-      setPw(u,pw);u.mustChange=true;audit('Updated','Users',u.username,'Password reset by administrator');closeModal();save();rerender();toast(`Temporary password set for ${u.name}.`)}
+      if(API.on){try{Object.assign(u,await api(`users/${u.id}/reset-password`,{method:'POST',body:{password:pw}}));closeModal();rerender();toast(`Temporary password set for ${u.name}.`)}catch(x){err(x.message)}return}setPw(u,pw);u.mustChange=true;audit('Updated','Users',u.username,'Password reset by administrator');closeModal();save();rerender();toast(`Temporary password set for ${u.name}.`)}
     else if(id==='gpsform'){if(!canEdit('gps'))return deny();const v=V(F.dataset.id),la=parseFloat(fd.get('lat')),lo=parseFloat(fd.get('lng'));if(!v)return closeModal();
       if(!isFinite(la)||!isFinite(lo)||Math.abs(la)>90||Math.abs(lo)>180)return err('Enter a valid latitude (−90 to 90) and longitude (−180 to 180).');
       const at=fd.get('at')?+parseD(String(fd.get('at'))):Date.now();if(at>Date.now()+6e4)return err('The fix time cannot be in the future.');
@@ -1619,13 +1662,18 @@ document.addEventListener('submit',e=>{const F=e.target,id=F.id;if(['loginf','ch
     return}
   if(id!=='setform')return;if(!canPage('system-settings'))return deny();e.preventDefault();const fd=new FormData(e.target),S=state.settings,before={...S};
   for(const k of['company'])S[k]=String(fd.get(k)).trim()||S[k];for(const k of['fuelPrice','serviceInterval','budget','warnDays'])S[k]=Math.max(0,Number(fd.get(k))||0);
+  if(API.on){rerender();try{Object.assign(S,await api('settings',{method:'PUT',body:S}));toast('Settings saved.')}catch(x){Object.assign(S,before);rerender();toast('Not saved: '+x.message,1)}return}
   const ch=Object.keys(S).filter(k=>before[k]!==S[k]).map(k=>`${k}: ${before[k]} → ${S[k]}`).join('; ');audit('Updated','Settings','—',ch||'No changes');save();rerender();toast('Settings saved.')});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#modal').hidden)closeModal();$('#bellpop').hidden=true;$('#profpop').hidden=true;document.body.classList.remove('navopen')}});
 addEventListener('hashchange',()=>{render();scrollTo(0,0)});
-try{ME=sessionStorage.getItem(SK)}catch(e){}ui.pick=null;
+ui.pick=null;
 tick();setInterval(tick,15000);
 setInterval(()=>{if(me()&&$('#modal').hidden&&!ui.pick){updMap();renderGps()}},60000);
-render();if(ui.scroll)scrollTo(0,ui.scroll);
+(async()=>{document.body.classList.add('locked');$('#landing').hidden=false;$('#loginbox').innerHTML='<h2>Connecting…</h2><p>Looking for the fleet server.</p>';
+  if(await detectApi()){API.on=true;state=emptyState();ME=null;sync.s='saved';let tk=null;try{tk=sessionStorage.getItem(TK)}catch(e){}
+    if(tk){API.token=tk;try{await loadAll()}catch(e){keepToken(null);ME=null}}setInterval(pollRev,15000)}
+  else{try{ME=sessionStorage.getItem(SK)}catch(e){}}
+  render();if(ui.scroll)scrollTo(0,ui.scroll)})();
 const cu=window.claude&&window.claude.use;
 if(cu){window.claude.use('artifact').then(x=>{ART=x;if(ART){sync.s='saved';renderFoot()}}).catch(()=>{});window.claude.use('downloads').then(x=>{DL=x}).catch(()=>{})}
 }
