@@ -2,7 +2,7 @@
 
 A single-page fleet management app for Mobisirs Bespoke Solutions. It covers vehicles, drivers, hotel allocations, GPS tracking, maintenance, NTSA inspections, fuel, cleaning, procurement, finance, reports, users and audit logs.
 
-Everything is in one file, `index.html`. There is no build step or server, and no dependencies apart from the Inter font from Google Fonts.
+Everything is in one file, `index.html`. There is no build step or server. [Leaflet](https://leafletjs.com) 1.9.4 (BSD-2-Clause) is included inside the file. The only things loaded from the internet are the Inter font and the OpenStreetMap map tiles.
 
 ## Running it
 
@@ -40,14 +40,14 @@ Every create, update, delete, sign-in and sign-out is written to **Audit Logs** 
 
 ## Live GPS tracking
 
-The **Live Tracking** page shows the hotels and landmarks at their real coordinates. Each vehicle is drawn at its latest GPS position, with:
+The **Live Tracking** page and the dashboard show a real **OpenStreetMap** street map (© OpenStreetMap contributors). It has zoom, pan, a scale bar and pins for each hotel. Each vehicle is drawn at its latest GPS position. Tapping a vehicle opens a popup with its details and an *Update position* button. Each vehicle shows:
 
 - how old the position is: *Live* (15 minutes or less), *Last hour* or *Stale*
 - speed
 - straight-line distance to the nearest hotel or landmark
 - a scale bar
 
-Road lines on the map are approximate. Vehicle positions are exact.
+If street map tiles can't load (for example offline, or inside a claude.ai artifact, which blocks outside images), the app switches automatically to a drawn map of Nairobi. That map still places vehicles at their exact coordinates, but its roads are only approximate.
 
 Positions come from one of these sources:
 
@@ -64,7 +64,7 @@ Positions come from one of these sources:
    - Timestamps can be ISO dates or Unix seconds or milliseconds.
    - Readings older than a vehicle's current position are skipped.
 
-2. **Manual update.** Click *Update* on a vehicle and either type the coordinates or choose *Pick on map* and click the vehicle's location.
+2. **Manual update.** Click *Update* on a vehicle, or *Update position* in its map popup. Then either type the coordinates or choose *Pick on map* and tap the vehicle's location on the street map.
 
 The app does not stream positions from trackers by itself. For fully live positions, connect your tracking provider's API to the import format above, for example with a small script that writes the CSV on a schedule.
 
@@ -75,7 +75,7 @@ The app does not stream positions from trackers by itself. For fully live positi
 
 ## Features
 
-- Dashboard with KPIs, live map, recent activity, expenditure donut, maintenance alerts, NTSA countdown, weekly fuel and cleaning chart, and hotel allocation
+- Dashboard with KPIs, OpenStreetMap live map, recent activity, expenditure donut, maintenance alerts, NTSA countdown, weekly fuel and cleaning chart, and hotel allocation
 - Fleet management: add, edit and delete vehicles; dispatch trips and end them (ending a trip adds the distance to the odometer)
 - Maintenance workflow, from *Scheduled* to *In progress* to *Completed*; vehicle status and next service update automatically
 - NTSA inspection records and a due schedule; a failed inspection marks the vehicle out of service
