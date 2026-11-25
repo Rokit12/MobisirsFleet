@@ -119,12 +119,13 @@ To host `index.html` somewhere other than the backend (for example GitHub Pages)
 | `GET /api/audit` | Audit trail (admins and managers) |
 | `POST /api/gps/positions` | Receive GPS readings |
 | `GET /api/gps/track/{vehicleId}` | Position history |
+| `GET/POST /api/alerts/read` | The signed-in user's read and unread alerts |
 
 The full schema is in `/docs`.
 
 ## Database tables
 
-`hotels`, `vehicles`, `drivers`, `trips`, `maintenance`, `fuel`, `wash`, `inspections`, `procurement`, `expenses`, `activities`, `users`, `settings`, `audit_log`, `gps_fixes` and `meta`. The fleet tables are defined in one schema in `backend/app/models.py`. Every fleet row records who last changed it and when.
+`hotels`, `vehicles`, `drivers`, `trips`, `maintenance`, `fuel`, `wash`, `inspections`, `procurement`, `expenses`, `activities`, `users`, `settings`, `audit_log`, `gps_fixes`, `alert_reads` and `meta`. New tables are created automatically when the server starts. The fleet tables are defined in one schema in `backend/app/models.py`. Every fleet row records who last changed it and when.
 
 ## Tests
 
@@ -147,5 +148,5 @@ If `index.html` is opened without the backend (as a local file, on a static host
 - Fuel log with km/L efficiency, cleaning log with a *cleaning due* list, and procurement approvals (Requested → Approved → Ordered → Received)
 - Finance ledger built automatically from every module, monthly budget and period comparison
 - Reports by vehicle, hotel, driver and month, with CSV export from every table
-- Alerts bell covering high-priority repairs, services due, inspections, licence and insurance expiry, and pending approvals
+- Alerts bell covering high-priority repairs, services due, inspections, licence and insurance expiry, and pending approvals. Each person can mark alerts as read or unread, one at a time or all at once, and the bell counts only unread alerts. With the backend, read status is saved per user in the database (`/api/alerts/read`); offline, it is kept in the browser. An alert becomes unread again when it gets worse, for example when a service goes from due to overdue.
 - Works on phones and tablets: on phones, tables become stacked cards and forms open as bottom sheets; light and dark themes

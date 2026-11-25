@@ -166,3 +166,22 @@ def test_gps_ingest_with_tracker_key(admin_token):
 def test_frontend_served():
     r = client.get("/")
     assert r.status_code in (200, 404)
+
+
+def test_alert_read_status_is_per_user(admin_token):
+    h = auth(admin_token)
+    r = client.post("/api/alerts/read", headers=h, json={"keys": ["svc:v1:50000:due", "po:p1"], "read": True})
+    assert r.status_code == 200 and sorted(r.json()["keys"]) == ["po:p1", "svc:v1:50000:due"]
+    assert sorted(client.get("/api/bootstrap", headers=h).json()["alertReads"]) == ["po:p1", "svc:v1:50000:due"]
+    r = client.post("/api/alerts/read", headers=h, json={"keys": ["po:p1"], "read": False})
+    assert r.json()["keys"] == ["svc:v1:50000:due"]
+    # Another user's marks are separate.
+    client.post("/api/users", headers=h, json={"name": "Vera Viewer", "username": "vera", "role": "Viewer",
+                                               "password": "Temp1234x"})
+    tok = login("vera", "Temp1234x").json()["token"]
+    tok = client.post("/api/auth/change-password", headers=auth(tok),
+                      json={"current_password": "Temp1234x", "new_password": "Vera2026ok"}).json()["token"]
+    assert client.get("/api/alerts/read", headers=auth(tok)).json()["keys"] == []
+    assert client.post("/api/alerts/read", headers=auth(tok), json={"keys": ["po:p1"]}).json()["keys"] == ["po:p1"]
+    assert client.get("/api/alerts/read", headers=h).json()["keys"] == ["svc:v1:50000:due"]
+    assert client.post("/api/alerts/read", headers=h, json={"keys": []}).status_code == 422

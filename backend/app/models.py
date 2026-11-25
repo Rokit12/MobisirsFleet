@@ -138,6 +138,15 @@ class GpsFix(Base):
 Index("ix_gps_vehicle_ts", GpsFix.vehicle_id, GpsFix.ts)
 
 
+class AlertRead(Base):
+    """Which alerts each user has marked as read. Alerts themselves are worked out
+    from fleet data; each has a stable key such as 'svc:v12:48500:due'."""
+    __tablename__ = "alert_reads"
+    user_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    read_at: Mapped[str] = mapped_column(String(32))
+
+
 class Meta(Base):
     """Single-row counters; rev increases on every write so browsers can poll cheaply."""
     __tablename__ = "meta"

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from . import config
 from .database import Base, SessionLocal, engine, get_db
-from .models import FLEET_MODELS, FLEET_SCHEMA, AuditLog, GpsFix, Meta, Setting, User
+from .models import FLEET_MODELS, FLEET_SCHEMA, AlertRead, AuditLog, GpsFix, Meta, Setting, User
 from .security import (GPS_FIELDS, ROLES, VEHICLE_OPERATIONAL_FIELDS, can_delete, can_edit,
                        can_update_gps, can_view_audit, hash_password, make_token, password_problem,
                        read_token, verify_password)
@@ -259,7 +259,8 @@ def bootstrap(db: DbDep, user: UserDep):
     data = {t: [row_to_dict(t, r) for r in db.scalars(select(m))] for t, m in FLEET_MODELS.items()}
     users = [u.public() for u in db.scalars(select(User))] if user.role == "Admin" else [user.public()]
     return {"me": user.public(), "data": data, "users": users, "settings": get_settings(db),
-            "audit": recent_audit(db) if can_view_audit(user.role) else [], "rev": current_rev(db)}
+            "audit": recent_audit(db) if can_view_audit(user.role) else [], "rev": current_rev(db),
+            "alertReads": read_alert_keys(db, user.id)}
 
 
 @app.get("/api/rev")
@@ -475,6 +476,8 @@ def delete_user(user_id: str, db: DbDep, admin: Annotated[User, Depends(require_
     if user.role == "Admin" and user.status == "Active" and not _other_active_admins(db, user.id):
         raise HTTPException(400, "There must always be at least one active admin.")
     db.delete(user)
+    for row in db.scalars(select(AlertRead).where(AlertRead.user_id == user.id)):
+        db.delete(row)
     audit(db, admin.name, "Deleted", "Users", user.username, "")
     bump_rev(db)
     db.commit()
@@ -614,6 +617,49 @@ def gps_track(vehicle_id: str, db: DbDep, _user: UserDep, hours: float = 24):
     rows = db.scalars(select(GpsFix).where(GpsFix.vehicle_id == vehicle_id, GpsFix.ts >= since)
                       .order_by(GpsFix.ts).limit(20000))
     return [{"lat": r.lat, "lng": r.lng, "ts": r.ts, "speed": r.speed, "source": r.source} for r in rows]
+
+
+# ---------------------------------------------------------------- alert read status
+MAX_READ_KEYS = 5000
+
+
+class AlertReadIn(BaseModel):
+    keys: list[str] = Field(min_length=1, max_length=2000)
+    read: bool = True
+
+
+def read_alert_keys(db: Session, user_id: str) -> list[str]:
+    return list(db.scalars(select(AlertRead.key).where(AlertRead.user_id == user_id)))
+
+
+@app.get("/api/alerts/read")
+def get_alert_reads(db: DbDep, user: UserDep):
+    """Keys of the alerts the signed-in user has marked as read."""
+    return {"keys": read_alert_keys(db, user.id)}
+
+
+@app.post("/api/alerts/read")
+def set_alert_reads(body: AlertReadIn, db: DbDep, user: UserDep):
+    """Mark alerts as read (read=true) or unread (read=false) for the signed-in user only."""
+    keys = {k.strip()[:120] for k in body.keys if k and k.strip()}
+    existing = set(read_alert_keys(db, user.id))
+    if body.read:
+        now_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        for k in keys - existing:
+            db.add(AlertRead(user_id=user.id, key=k, read_at=now_iso))
+    else:
+        for k in keys & existing:
+            db.delete(db.get(AlertRead, (user.id, k)))
+    db.flush()
+    # Keep the table small: drop the oldest marks beyond the cap.
+    total = db.scalar(select(func.count()).select_from(AlertRead).where(AlertRead.user_id == user.id))
+    if total > MAX_READ_KEYS:
+        old = db.scalars(select(AlertRead).where(AlertRead.user_id == user.id)
+                         .order_by(AlertRead.read_at).limit(total - MAX_READ_KEYS))
+        for row in old:
+            db.delete(row)
+    db.commit()
+    return {"keys": read_alert_keys(db, user.id)}
 
 
 # ---------------------------------------------------------------- frontend
